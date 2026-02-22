@@ -479,42 +479,34 @@
             overlay.innerHTML = '';
             if (!faces) return;
 
-            // Calculate scaling factors between 640x480 (processing size) and actual display size
-            const videoWidth = video.videoWidth || 640;
-            const videoHeight = video.videoHeight || 480;
-            const displayWidth = video.clientWidth;
-            const displayHeight = video.clientHeight;
-
-            // Scaling factors
-            const scaleX = displayWidth / 640;
-            const scaleY = displayHeight / 480;
-
             faces.forEach(face => {
                 const [top, right, bottom, left] = face.location;
+                
+                // Convert to percentages based on 640x480 coordinate space
+                // This ensures boxes stay aligned even if video is scaled/resized
+                const leftPct = (left / 640) * 100;
+                const topPct = (top / 480) * 100;
+                const widthPct = ((right - left) / 640) * 100;
+                const heightPct = ((bottom - top) / 480) * 100;
+
                 const box = document.createElement('div');
                 box.style.position = 'absolute';
-                box.style.border = face.confidence > 75 ? '3px solid #28a745' : '3px solid #dc3545';
-                box.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
-
-                // Scaled coordinates
-                box.style.top = (top * scaleY) + 'px';
-                box.style.left = (left * scaleX) + 'px';
-                box.style.width = ((right - left) * scaleX) + 'px';
-                box.style.height = ((bottom - top) * scaleY) + 'px';
-                box.style.borderRadius = '4px';
+                box.style.border = face.confidence > 75 ? '2px solid #28a745' : '2px solid #dc3545';
+                box.style.top = topPct + '%';
+                box.style.left = leftPct + '%';
+                box.style.width = widthPct + '%';
+                box.style.height = heightPct + '%';
 
                 const label = document.createElement('span');
                 label.style.position = 'absolute';
-                label.style.top = '-30px';
+                label.style.top = '-25px';
                 label.style.left = '0';
                 label.style.background = face.confidence > 75 ? '#28a745' : '#dc3545';
                 label.style.color = 'white';
-                label.style.padding = '4px 10px';
+                label.style.padding = '2px 8px';
                 label.style.borderRadius = '4px';
-                label.style.fontSize = '14px';
-                label.style.fontWeight = 'bold';
+                label.style.fontSize = '12px';
                 label.style.whiteSpace = 'nowrap';
-                label.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
                 label.textContent = `${face.name} (${Math.round(face.confidence)}%)`;
 
                 box.appendChild(label);
@@ -534,31 +526,17 @@
                 // Update List
                 const list = document.getElementById('attendance-list');
                 if (data.length > 0) {
-                    list.innerHTML = data.map(record => {
-                        // Convert UTC ISO time from server to local browser time
-                        let localTimeStr = record.time;
-                        try {
-                            if (record.iso_time) {
-                                // Add Z if missing to treat as UTC from server
-                                const utcTime = record.iso_time.endsWith('Z') ? record.iso_time : record.iso_time + 'Z';
-                                const date = new Date(utcTime);
-                                localTimeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                            }
-                        } catch (e) {
-                            console.error("Time conversion error:", e);
-                        }
-
-                        return `
+                    list.innerHTML = data.map(record => `
                         <div class="attendance-item">
                             <div>
                                 <div class="student-name">${record.name}</div>
                                 <div style="color: #666; font-size: 0.9em;">ID: ${record.enrollment_no}</div>
                             </div>
                             <div class="time-badge">
-                                ${localTimeStr}
+                                ${record.time}
                             </div>
                         </div>
-                    `}).join('');
+                    `).join('');
                 } else {
                     list.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">Waiting for students...</div>';
                 }
