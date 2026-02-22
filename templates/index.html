@@ -481,7 +481,7 @@
 
             faces.forEach(face => {
                 const [top, right, bottom, left] = face.location;
-                
+
                 // Convert to percentages based on 640x480 coordinate space
                 // This ensures boxes stay aligned even if video is scaled/resized
                 const leftPct = (left / 640) * 100;
@@ -507,7 +507,7 @@
                 label.style.borderRadius = '4px';
                 label.style.fontSize = '12px';
                 label.style.whiteSpace = 'nowrap';
-                label.textContent = `${face.name} (${Math.round(face.confidence)}%)`;
+                label.textContent = `${face.name} (${Math.round(face.confidence)}%) | ${face.time || ''}`;
 
                 box.appendChild(label);
                 overlay.appendChild(box);
