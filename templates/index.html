@@ -507,7 +507,10 @@
                 label.style.borderRadius = '4px';
                 label.style.fontSize = '12px';
                 label.style.whiteSpace = 'nowrap';
-                label.textContent = `${face.name} (${Math.round(face.confidence)}%) | ${face.time || ''}`;
+
+                // Use client-side local time to match dashboard clock
+                const localTime = new Date().toLocaleTimeString();
+                label.textContent = `${face.name} (${Math.round(face.confidence)}%) | ${localTime}`;
 
                 box.appendChild(label);
                 overlay.appendChild(box);
@@ -526,17 +529,28 @@
                 // Update List
                 const list = document.getElementById('attendance-list');
                 if (data.length > 0) {
-                    list.innerHTML = data.map(record => `
+                    list.innerHTML = data.map(record => {
+                        // Format time locally if iso_time is available
+                        let displayTime = record.time;
+                        if (record.iso_time) {
+                            try {
+                                displayTime = new Date(record.iso_time).toLocaleTimeString();
+                            } catch (e) {
+                                console.error("Time formatting error:", e);
+                            }
+                        }
+
+                        return `
                         <div class="attendance-item">
                             <div>
                                 <div class="student-name">${record.name}</div>
                                 <div style="color: #666; font-size: 0.9em;">ID: ${record.enrollment_no}</div>
                             </div>
                             <div class="time-badge">
-                                ${record.time}
+                                ${displayTime}
                             </div>
                         </div>
-                    `).join('');
+                    `}).join('');
                 } else {
                     list.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">Waiting for students...</div>';
                 }
