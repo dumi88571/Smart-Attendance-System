@@ -20,6 +20,7 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_secret_dev_only')
 sys.path.append(str(Path(__file__).parent))
 
 from core.face_recognizer import FaceRecognizerCV, encode_face_from_image_cv
+from core.face_stabilizer import FaceStabilizer
 from database.db_manager import DatabaseManager
 
 # OAuth Configuration
@@ -37,9 +38,19 @@ google = oauth.register(
 # Global instances
 db_manager = DatabaseManager()
 face_recognizer = FaceRecognizerCV()
+face_stabilizer = FaceStabilizer(window_size=5) # Stabilize over last 5 frames
 
 # Track which students have been marked today (to show confirmation only once)
 marked_today = set()
+
+# Admin Auth Decorator
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user' not in session:
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
 
 def init_system():
     """Initialize the attendance system"""
@@ -61,27 +72,7 @@ def init_system():
     
     print(f"System ready with {len(students)} registered students")
 
-# Initialize system at module level for Gunicorn/Render
-init_system()
-
-# Admin Auth Decorator
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user' not in session:
-            return redirect(url_for('login', next=request.url))
-        return f(*args, **kwargs)
-    return decorated_function
-
-@app.route('/students/sync', methods=['POST'])
-@admin_required
-def sync_students():
-    """Manually reload student faces from database"""
-    try:
-        init_system()
-        return jsonify({'success': True, 'message': 'System re-synchronized with database'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# Removed local OpenCV AttendanceSystem in favor of Browser WebRTC + /process_frame
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -174,7 +165,10 @@ def process_frame():
             return jsonify({'error': 'Invalid image'}), 400
         
         # Recognize faces
-        recognized_faces = face_recognizer.recognize_faces(frame)
+        raw_faces = face_recognizer.recognize_faces(frame)
+        
+        # Stabilize faces (Temporal smoothing)
+        recognized_faces = face_stabilizer.update(raw_faces)
         
         marked_student = None
         
@@ -190,31 +184,26 @@ def process_frame():
                     marked_student = student_name
                     print(f"✅ Attendance marked: {student_name} (ID: {student_id})")
         
+        # New Feature: Stranger Detection
+        if not recognized_faces:
+            # Check for generic faces to detect strangers
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = face_recognizer.face_cascade.detectMultiScale(gray, 1.1, 4)
+            if len(faces) > 0:
+                # Log a "stranger" if no known faces match
+                db_manager.log_stranger(data['image'], 0) # 0 confidence = unknown
+                print("🚨 Stranger detected!")
+
         # Format location for frontend (Top, Right, Bottom, Left)
         faces_output = []
-        
-        # 1. Add recognized faces
+        now_time = datetime.now().strftime('%H:%M:%S')
         for face in recognized_faces:
             faces_output.append({
                 'name': face['name'],
                 'location': face['location'],
-                'confidence': face['confidence']
+                'confidence': face['confidence'],
+                'time': now_time
             })
-            
-        # 2. Add unknown faces if no recognized face is found (for visual feedback)
-        if not recognized_faces:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = face_recognizer.face_cascade.detectMultiScale(gray, 1.1, 4)
-            for (x, y, w, h) in faces:
-                # Same format: (top, right, bottom, left)
-                faces_output.append({
-                    'name': 'Unknown',
-                    'location': [int(y), int(x+w), int(y+h), int(x)],
-                    'confidence': 0
-                })
-                # Log stranger once per frame set
-                if len(faces_output) == 1:
-                    db_manager.log_stranger(data['image'], 0)
             
         return jsonify({
             'success': True, 
@@ -434,6 +423,9 @@ def export_csv():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
+    # Initialize system
+    init_system()
+    
     # Get local IP
     import socket
     hostname = socket.gethostname()
