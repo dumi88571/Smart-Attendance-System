@@ -99,9 +99,9 @@ class FaceRecognizerCV:
             # Map 0.6-1.0 range to 0.75-0.99 range for better UX
             if raw_score > 0.5:
                 boosted_score = 0.75 + (raw_score - 0.5) * 0.5
-                return max(0, min(99, boosted_score * 100))
+                return float(max(0, min(99, boosted_score * 100)))
             
-            return max(0, min(100, raw_score * 100))
+            return float(max(0, min(100, raw_score * 100)))
         except Exception:
             return 0
     
@@ -162,13 +162,20 @@ class FaceRecognizerCV:
                     best_match_id = student['id']
                     best_match_name = student['name']
             
-            # Threshold verification (Adjusted for boosted score, 75% is the new 60%)
+            # Add face even if confidence is low, but label as Unknown
             if best_similarity > 75:
                 recognized_faces.append({
                     'id': best_match_id,
                     'name': best_match_name,
-                    'location': (y, x+w, y+h, x),
-                    'confidence': best_similarity
+                    'location': (int(y), int(x+w), int(y+h), int(x)),
+                    'confidence': float(best_similarity)
+                })
+            else:
+                recognized_faces.append({
+                    'id': -1,
+                    'name': 'Unknown',
+                    'location': (int(y), int(x+w), int(y+h), int(x)),
+                    'confidence': float(best_similarity)
                 })
         
         return recognized_faces
