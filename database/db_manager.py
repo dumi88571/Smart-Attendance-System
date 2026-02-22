@@ -211,22 +211,19 @@ class DatabaseManager:
             for row in rows:
                 ts = row['marked_at']
                 if isinstance(ts, str):
-                    try:
-                        if '.' in ts:
-                            ts = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S.%f')
-                        else:
-                            ts = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
-                    except:
-                        pass
+                    for fmt in ('%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d'):
+                        try:
+                            ts = datetime.strptime(ts, fmt)
+                            break
+                        except ValueError:
+                            continue
                 
                 time_str = ts.strftime('%I:%M %p') if isinstance(ts, datetime) else str(ts)
-                iso_time = ts.isoformat() if isinstance(ts, datetime) else str(ts)
-                
                 formatted_rows.append({
                     'name': row['name'], 
                     'enrollment_no': row['enrollment_no'], 
                     'time': time_str,
-                    'iso_time': iso_time
+                    'iso_time': ts.isoformat() if isinstance(ts, datetime) else str(ts)
                 })
         return formatted_rows
     
@@ -253,13 +250,12 @@ class DatabaseManager:
             for row in rows:
                 ts = row['marked_at']
                 if isinstance(ts, str):
-                    try:
-                        if '.' in ts:
-                            ts = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S.%f')
-                        else:
-                            ts = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
-                    except:
-                        pass
+                    for fmt in ('%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d'):
+                        try:
+                            ts = datetime.strptime(ts, fmt)
+                            break
+                        except ValueError:
+                            continue
                 
                 report.append({
                     'name': row['name'],
